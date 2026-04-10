@@ -1,7 +1,13 @@
 import { useMemo, useState } from "react";
 import { usePayments } from "../context/PaymentsContext";
-import { useSettings, Currency, CURRENCY_SYMBOLS } from "../context/SettingsContext";
-import { Payment } from "../types";
+import {
+  useSettings,
+  type Currency,
+  CURRENCY_SYMBOLS,
+} from "../context/SettingsContext";
+import { type Payment } from "../types";
+import { CATEGORIES } from "../categories";
+import { CaretRight, ChartBar, Warning, CaretDown } from "@phosphor-icons/react";
 
 function getAvailableMonths(dates: string[]): string[] {
   const months = new Set(dates.map((d) => d.slice(0, 7)));
@@ -15,8 +21,8 @@ function formatMonth(ym: string): string {
 }
 
 const CURRENCY_OPTIONS: { value: Currency; label: string }[] = [
-  { value: "USD", label: "US Dollar ($)" },
-  { value: "GEL", label: "Georgian Lari (₾)" },
+  { value: "USD", label: "USD ($)" },
+  { value: "GEL", label: "GEL (\u20BE)" },
 ];
 
 export default function Summary() {
@@ -68,90 +74,173 @@ export default function Summary() {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }
 
+  const catIcon = (name: string) => {
+    const cat = CATEGORIES.find((c) => c.name === name);
+    if (!cat) return null;
+    const CatIcon = cat.icon;
+    return <CatIcon size={16} weight="regular" />;
+  };
+
   return (
-    <div className="page">
-      <h1>Summary by Category</h1>
+    <div className="animate-fade-in">
+      <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 mb-6">
+        Summary
+      </h1>
 
-      <div className="filter-bar">
-        <label>
-          Month
-          <select
-            value={selectedMonth}
-            onChange={(e) => {
-              setSelectedMonth(e.target.value);
-              setExpandedCategory(null);
-            }}
-          >
-            <option value="all">All time</option>
-            {availableMonths.map((m) => (
-              <option key={m} value={m}>
-                {formatMonth(m)}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          Display currency
-          <select
-            value={displayCurrency}
-            onChange={(e) => setDisplayCurrency(e.target.value as Currency)}
-          >
-            {CURRENCY_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </label>
+      {/* Filters */}
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+            Month
+          </label>
+          <div className="relative">
+            <select
+              value={selectedMonth}
+              onChange={(e) => {
+                setSelectedMonth(e.target.value);
+                setExpandedCategory(null);
+              }}
+              className="w-full appearance-none px-3 py-2.5 pr-9 bg-white border border-zinc-200 rounded-xl text-sm font-medium text-zinc-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200 cursor-pointer"
+            >
+              <option value="all">All time</option>
+              {availableMonths.map((m) => (
+                <option key={m} value={m}>
+                  {formatMonth(m)}
+                </option>
+              ))}
+            </select>
+            <CaretDown
+              size={14}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"
+            />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+            Currency
+          </label>
+          <div className="relative">
+            <select
+              value={displayCurrency}
+              onChange={(e) =>
+                setDisplayCurrency(e.target.value as Currency)
+              }
+              className="w-full appearance-none px-3 py-2.5 pr-9 bg-white border border-zinc-200 rounded-xl text-sm font-medium text-zinc-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200 cursor-pointer"
+            >
+              {CURRENCY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <CaretDown
+              size={14}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"
+            />
+          </div>
+        </div>
       </div>
 
+      {/* Conversion warning */}
       {showConversionWarning && (
-        <p className="warning">
-          Some payments are in a different currency. Download the exchange rate in
-          Settings to see accurate totals.
-        </p>
+        <div className="flex items-start gap-3 px-4 py-3.5 bg-amber-50 border border-amber-200/60 rounded-xl mb-6 animate-fade-in">
+          <Warning
+            size={18}
+            weight="fill"
+            className="text-amber-500 shrink-0 mt-0.5"
+          />
+          <p className="text-sm text-amber-800 leading-relaxed">
+            Some payments use a different currency. Download the exchange rate in
+            Settings to see accurate totals.
+          </p>
+        </div>
       )}
 
       {entries.length === 0 ? (
-        <p className="empty">No payments to summarize.</p>
+        <div className="flex flex-col items-center justify-center py-20 animate-fade-in">
+          <div className="w-16 h-16 rounded-2xl bg-zinc-100 flex items-center justify-center mb-4">
+            <ChartBar size={28} className="text-zinc-400" />
+          </div>
+          <p className="text-sm font-medium text-zinc-500 mb-1">
+            Nothing to summarize
+          </p>
+          <p className="text-xs text-zinc-400">
+            Add some expenses to see your breakdown
+          </p>
+        </div>
       ) : (
         <>
-          <div className="summary-list">
-            {entries.map(([category, amount]) => {
+          {/* Category breakdown */}
+          <div className="space-y-2">
+            {entries.map(([category, amount], i) => {
+              const pct = total > 0 ? (amount / total) * 100 : 0;
               const isExpanded = expandedCategory === category;
-              const catPayments = isExpanded ? paymentsForCategory(category) : [];
+              const catPayments = isExpanded
+                ? paymentsForCategory(category)
+                : [];
+
               return (
-                <div key={category} className="summary-group">
-                  <div
-                    className={`summary-row ${isExpanded ? "summary-row-expanded" : ""}`}
+                <div
+                  key={category}
+                  className="bg-white rounded-2xl border border-zinc-200/60 overflow-hidden animate-list-in"
+                  style={{ animationDelay: `${i * 60}ms` }}
+                >
+                  <button
                     onClick={() => toggleCategory(category)}
+                    className="w-full text-left px-5 py-4 flex items-center justify-between gap-4 transition-colors duration-150 hover:bg-zinc-50/50 cursor-pointer"
                   >
-                    <span className="summary-category">
-                      <span className={`summary-chevron ${isExpanded ? "chevron-open" : ""}`}>
-                        &#9654;
+                    <div className="flex items-center gap-2.5 text-zinc-600">
+                      {catIcon(category)}
+                      <span className="text-sm font-semibold text-zinc-900">
+                        {category}
                       </span>
-                      {category}
-                    </span>
-                    <span className="summary-figures">
-                      <span className="summary-amount">{symbol}{amount.toFixed(2)}</span>
-                      <span className="summary-pct">
-                        {total > 0 ? ((amount / total) * 100).toFixed(1) : 0}%
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-sm font-semibold tabular-nums text-zinc-900">
+                        {symbol}
+                        {amount.toFixed(2)}
                       </span>
-                    </span>
+                      <span className="text-xs text-zinc-400 w-12 text-right font-mono tabular-nums">
+                        {pct.toFixed(1)}%
+                      </span>
+                      <CaretRight
+                        size={14}
+                        className={`text-zinc-400 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}
+                      />
+                    </div>
+                  </button>
+
+                  {/* Progress bar */}
+                  <div className="px-5 pb-4 -mt-1">
+                    <div className="h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 rounded-full transition-all duration-700 ease-out"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
                   </div>
+
+                  {/* Expanded details */}
                   {isExpanded && (
-                    <div className="summary-details">
+                    <div className="border-t border-zinc-100 animate-fade-in">
                       {catPayments.map((p) => (
-                        <div key={p.id} className="summary-detail-row">
-                          <div className="summary-detail-left">
-                            <span className="summary-detail-date">{p.date}</span>
+                        <div
+                          key={p.id}
+                          className="flex items-center justify-between px-5 py-3 text-sm border-b border-zinc-50 last:border-b-0"
+                        >
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-zinc-600 tabular-nums text-xs">
+                              {p.date}
+                            </span>
                             {p.description && (
-                              <span className="summary-detail-desc">{p.description}</span>
+                              <span className="text-zinc-400 text-xs">
+                                {p.description}
+                              </span>
                             )}
                           </div>
-                          <span className="summary-detail-amount">
-                            {symbol}{convertAmount(p).toFixed(2)}
+                          <span className="font-mono tabular-nums font-medium text-zinc-700">
+                            {symbol}
+                            {convertAmount(p).toFixed(2)}
                           </span>
                         </div>
                       ))}
@@ -161,8 +250,14 @@ export default function Summary() {
               );
             })}
           </div>
-          <div className="total-row">
-            <strong>Total:</strong> <span>{symbol}{total.toFixed(2)}</span>
+
+          {/* Total */}
+          <div className="mt-4 px-5 py-4 bg-zinc-900 rounded-2xl flex items-center justify-between animate-slide-up">
+            <span className="text-sm font-medium text-zinc-400">Total</span>
+            <span className="font-mono text-lg font-semibold text-white tabular-nums">
+              {symbol}
+              {total.toFixed(2)}
+            </span>
           </div>
         </>
       )}
