@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { usePayments } from "../context/PaymentsContext";
 import { useSettings } from "../context/SettingsContext";
 import { Currency, CURRENCY_SYMBOLS } from "../types";
@@ -12,6 +12,17 @@ import {
   CaretDown,
 } from "@phosphor-icons/react";
 
+function getAvailableMonths(dates: string[]): string[] {
+  const months = new Set(dates.map((d) => d.slice(0, 7)));
+  return [...months].sort().reverse();
+}
+
+function formatMonth(ym: string): string {
+  const [year, month] = ym.split("-");
+  const date = new Date(Number(year), Number(month) - 1);
+  return date.toLocaleString("default", { month: "long", year: "numeric" });
+}
+
 export default function PaymentsList() {
   const { payments, updatePayment, deletePayment } = usePayments();
   const { currency } = useSettings();
@@ -21,10 +32,24 @@ export default function PaymentsList() {
   const [editDate, setEditDate] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState("all");
 
-  const sorted = [...payments].sort(
+  const availableMonths = useMemo(
+    () => getAvailableMonths(payments.map((p) => p.date)),
+    [payments]
+  );
+
+  const filtered =
+    selectedMonth === "all"
+      ? payments
+      : payments.filter((p) => p.date.startsWith(selectedMonth));
+
+  const sorted = [...filtered].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
+
+  const filterLabel =
+    selectedMonth === "all" ? "All time" : formatMonth(selectedMonth);
 
   function startEdit(id: string) {
     const p = payments.find((p) => p.id === id);
@@ -70,15 +95,41 @@ export default function PaymentsList() {
 
   return (
     <div className="animate-fade-in">
-      <div className="flex items-baseline justify-between mb-6">
+      <div className="flex items-baseline justify-between mb-4">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
           Payments
         </h1>
-        {payments.length > 0 && (
+        {filtered.length > 0 && (
           <span className="text-sm text-zinc-400 font-mono tabular-nums">
-            {payments.length}
+            {filtered.length}
           </span>
         )}
+      </div>
+
+      <div className="mb-6">
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+            Month
+          </label>
+          <div className="relative">
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="w-full appearance-none px-3 py-2.5 pr-9 bg-white border border-zinc-200 rounded-xl text-sm font-medium text-zinc-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200 cursor-pointer"
+            >
+              <option value="all">All time</option>
+              {availableMonths.map((m) => (
+                <option key={m} value={m}>
+                  {formatMonth(m)}
+                </option>
+              ))}
+            </select>
+            <CaretDown
+              size={14}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"
+            />
+          </div>
+        </div>
       </div>
 
       {sorted.length === 0 ? (
@@ -87,10 +138,12 @@ export default function PaymentsList() {
             <Receipt size={28} className="text-zinc-400" />
           </div>
           <p className="text-sm font-medium text-zinc-500 mb-1">
-            No payments yet
+            {selectedMonth === "all" ? "No payments yet" : `No payments in ${filterLabel}`}
           </p>
           <p className="text-xs text-zinc-400">
-            Start tracking by adding your first expense
+            {selectedMonth === "all"
+              ? "Start tracking by adding your first expense"
+              : "Try selecting a different month"}
           </p>
         </div>
       ) : (
