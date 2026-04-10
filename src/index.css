@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+html {
+  touch-action: manipulation;
+}
+
 @theme {
   --font-sans: "Outfit", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
